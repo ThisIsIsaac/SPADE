@@ -64,7 +64,7 @@ def get_nonspade_norm_layer(opt, norm_type='instance'):
 # |norm_nc|: the #channels of the normalized activations, hence the output dim of SPADE
 # |label_nc|: the #channels of the input semantic map, hence the input dim of SPADE
 class SPADE(nn.Module):
-    def __init__(self, config_text, norm_nc, label_nc):
+    def __init__(self, config_text, norm_nc, label_nc, input_nc):
         super().__init__()
 
         assert config_text.startswith('spade')
@@ -87,7 +87,7 @@ class SPADE(nn.Module):
 
         pw = ks // 2
         self.mlp_shared = nn.Sequential(
-            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw),
+            nn.Conv2d(label_nc + input_nc, nhidden, kernel_size=ks, padding=pw),
             nn.ReLU()
         )
         self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
@@ -100,7 +100,9 @@ class SPADE(nn.Module):
 
         # Part 2. produce scaling and bias conditioned on semantic map
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
-        actv = self.mlp_shared(segmap)
+        segmap_featuremap = torch.cat([segmap, normalized], dim=1)
+
+        actv = self.mlp_shared(segmap_featuremap)
         gamma = self.mlp_gamma(actv)
         beta = self.mlp_beta(actv)
 
